@@ -1,0 +1,238 @@
+/**
+ * Game.jack
+ * Main game logic for "Catch the Square".
+ *
+ * HOW TO PLAY:
+ *   Move the PLAYER square (black) to catch the TARGET square (black, outlined).
+ *   Use the arrow keys to move:
+ *     - Left Arrow  : move left
+ *     - Right Arrow : move right
+ *     - Up Arrow    : move up
+ *     - Down Arrow  : move down
+ *   Press Q to quit the game.
+ *
+ * KEYBOARD NOTES FOR VMEmulator:
+ *   Arrow keys are reliable in the Nand2Tetris VMEmulator.
+ *   Key codes: Left=130, Up=131, Right=132, Down=133, Q=81
+ *
+ * SCREEN:
+ *   512 x 256 pixels total.
+ *   Top 16 rows (y=0..15) are reserved for the score display.
+ *   Play area: y=16 to y=255.
+ *
+ * COLLISION:
+ *   Simple bounding-box overlap check between player and target.
+ */
+class Game {
+
+    field Square player;    // The square the player controls
+    field Square target;    // The square the player must catch
+
+    field int score;        // Current score
+    field int step;         // Pixels the player moves per keypress
+
+    // Player square size and target square size
+    field int playerSize;
+    field int targetSize;
+
+    // Play area boundaries
+    // Screen: 512 wide, 256 tall. Top 16 rows = HUD.
+    field int minX;
+    field int maxX;
+    field int minY;
+    field int maxY;
+
+    // Pseudo-random target placement seed
+    field int seed;
+
+    /**
+     * Constructs and initializes the game.
+     */
+    constructor Game new() {
+        let playerSize = 20;
+        let targetSize = 20;
+        let step = 3;
+
+        // Play area limits (keep squares fully on screen)
+        let minX = 0;
+        let maxX = 511 - playerSize;   // rightmost x for player
+        let minY = 16;                 // below HUD
+        let maxY = 255 - playerSize;   // bottommost y for player
+
+        let score = 0;
+        let seed = 47;   // starting seed for pseudo-random positions
+
+        // Create player in upper-left of play area
+        let player = Square.new(50, 100, playerSize);
+
+        // Create target far from player
+        let target = Square.new(400, 180, targetSize);
+
+        return this;
+    }
+
+    /** Frees all allocated objects. */
+    method void dispose() {
+        do player.dispose();
+        do target.dispose();
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    /**
+     * Main game loop.
+     * Draws the initial state, then reads keys and updates game state
+     * until the player presses Q.
+     */
+ method void run() {
+    var char key;
+    var boolean quit;
+    var int dx;
+    var int dy;
+
+    let quit = false;
+    let dx = 0;
+    let dy = 0;
+
+    do Screen.clearScreen();
+    do drawHUD();
+    do player.draw();
+    do target.draw();
+
+    while (~quit) {
+        let key = Keyboard.keyPressed();
+
+        if (key = 130) { let dx = -step; let dy = 0; }
+        if (key = 131) { let dx = 0; let dy = -step; }
+        if (key = 132) { let dx = step; let dy = 0; }
+        if (key = 133) { let dx = 0; let dy = step; }
+
+        if (key = 81) { let quit = true; }
+
+        do movePlayer(dx, dy);
+        do checkCollision();
+
+        do Sys.wait(50);
+    }
+
+    do Screen.clearScreen();
+    do Output.moveCursor(10, 20);
+    do Output.printString("Game Over! Final score: ");
+    do Output.printInt(score);
+
+    return;
+}
+
+    /**
+     * Moves the player by (dx, dy), clamped to the play area.
+     * Prevents the player from leaving the screen edges.
+     */
+    method void movePlayer(int dx, int dy) {
+        var int nx;
+        var int ny;
+
+        let nx = player.getX() + dx;
+        let ny = player.getY() + dy;
+
+        // Clamp x
+        if (nx < minX) { let nx = minX; }
+        if (nx > maxX) { let nx = maxX; }
+
+        // Clamp y
+        if (ny < minY) { let ny = minY; }
+        if (ny > maxY) { let ny = maxY; }
+
+        do player.moveTo(nx, ny);
+        return;
+    }
+
+    /**
+     * Checks if the player overlaps the target using AABB collision.
+     * If they overlap, increments the score, redraws the HUD,
+     * and moves the target to a new pseudo-random position.
+     */
+    method void checkCollision() {
+        var int px;
+        var int py;
+        var int tx;
+        var int ty;
+
+        let px = player.getX();
+        let py = player.getY();
+        let tx = target.getX();
+        let ty = target.getY();
+
+        // AABB overlap: two rectangles overlap if neither is
+        // completely to the left, right, above, or below the other.
+        if (~(px + playerSize < tx) &
+            ~(tx + targetSize < px) &
+            ~(py + playerSize < ty) &
+            ~(ty + targetSize < py)) {
+
+            // Collision detected!
+            let score = score + 1;
+            do drawHUD();
+            do placeTargetRandom();
+        }
+
+        return;
+    }
+
+    /**
+     * Moves the target to a new pseudo-random position.
+     * Uses a simple linear congruential generator for variety.
+     * Ensures the target stays in the play area.
+     */
+    method void placeTargetRandom() {
+        var int nx;
+        var int ny;
+        var int maxTX;
+        var int maxTY;
+
+        // LCG step: seed = (seed * 214013 + 2531011) mod 32768
+        // Jack has no mod operator, so we use bit masking with 32767 (0x7FFF)
+        // to keep the value in range. We use simple multiply-add then mask.
+        let seed = ((seed * 75) + 74) & 32767;
+        let nx = seed;
+
+        let seed = ((seed * 75) + 74) & 32767;
+        let ny = seed;
+
+        // Scale to play area
+        let maxTX = 511 - targetSize;
+        let maxTY = 255 - targetSize;
+
+        // Map nx to [0, maxTX]
+        // nx is in [0, 32767]; divide by 64 gives [0, 511]
+        let nx = nx / 64;
+        if (nx > maxTX) { let nx = maxTX; }
+        if (nx < 0) { let nx = 0; }
+
+        // Map ny to [minY, maxTY]
+        let ny = (ny / 128) + minY;
+        if (ny > maxTY) { let ny = maxTY; }
+        if (ny < minY) { let ny = minY; }
+
+        do target.moveTo(nx, ny);
+        return;
+    }
+
+    /**
+     * Draws the heads-up display (HUD) at the top of the screen.
+     * Shows "Score: N  |  Q=Quit" on row 0.
+     * Clears the HUD area first to avoid leftover text artifacts.
+     */
+    method void drawHUD() {
+        // Clear the HUD strip (top 16 rows = y 0..15)
+        do Screen.setColor(false);
+        do Screen.drawRectangle(0, 0, 511, 15);
+
+        // Print score text
+        do Output.moveCursor(0, 0);
+        do Output.printString("Score: ");
+        do Output.printInt(score);
+       
+
+        return;
+    }
+}
