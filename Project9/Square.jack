@@ -1,0 +1,68 @@
+/**
+ * Square.jack
+ * Represents a filled square that can be drawn and erased on the screen.
+ *
+ * The Nand2Tetris screen is 512 x 256 pixels.
+ * x is the left edge, y is the top edge of the square.
+ */
+class Square {
+
+    field int x;      // x position of top-left corner
+    field int y;      // y position of top-left corner
+    field int size;   // side length in pixels
+
+    /**
+     * Constructs a new Square at (ax, ay) with side length aSize.
+     */
+    constructor Square new(int ax, int ay, int aSize) {
+        let x = ax;
+        let y = ay;
+        let size = aSize;
+        return this;
+    }
+
+    /** Returns the x position. */
+    method int getX() { return x; }
+
+    /** Returns the y position. */
+    method int getY() { return y; }
+
+    /** Returns the size. */
+    method int getSize() { return size; }
+
+    /**
+     * Draws this square on the screen in black.
+     */
+   method void draw() {
+    do Screen.setColor(true);
+    do Screen.drawRectangle(x, y, x + size - 1, y + size - 1);
+    return;
+}
+
+    /**
+     * Erases this square by drawing it in white.
+     */
+    method void erase() {
+        do Screen.setColor(false);
+        do Screen.drawRectangle(x, y, x + size - 1, y + size - 1);
+        return;
+    }
+
+    /**
+     * Moves the square to a new position (nx, ny).
+     * Erases from the old position and draws at the new one.
+     */
+    method void moveTo(int nx, int ny) {
+        do erase();
+        let x = nx;
+        let y = ny;
+        do draw();
+        return;
+    }
+
+    /** Frees memory used by this Square object. */
+    method void dispose() {
+        do Memory.deAlloc(this);
+        return;
+    }
+}
