@@ -1,0 +1,19 @@
+/**
+ * Main.jack
+ * Entry point for "Catch the Square" - Nand2Tetris Project 9
+ * 
+ * Initializes and runs the game.
+ */
+class Main {
+
+    /**
+     * Creates a Game instance and starts it.
+     */
+    function void main() {
+        var Game game;
+        let game = Game.new();
+        do game.run();
+        do game.dispose();
+        return;
+    }
+}
