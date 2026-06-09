@@ -1,0 +1,305 @@
+JackTokenizer
+librec_info: #(path: #(), lib_committed: "")
+class
+	{
+	New(filePath)
+		{
+		.filePath = filePath
+		.text = GetFile(filePath)
+		if .text is false
+			throw "Cannot open file: " $ filePath
+
+		.tokens = Object()
+		.Tokenize()
+		}
+
+	GetTokens()
+		{
+		return .tokens
+		}
+
+	WriteTokensXml(outputPath)
+		{
+		lines = Object()
+		lines.Add("<tokens>")
+
+		for (i = 0; i < .tokens.Size(); ++i)
+			{
+			t = .tokens[i]
+			line = "<" $ t.type $ "> "
+			line $= t.value
+			line $= " </" $ t.type $ ">"
+			lines.Add(line)
+			}
+
+		lines.Add("</tokens>")
+		PutFile(outputPath, lines.Join("\n") $ "\n")
+		}
+
+	Tokenize()
+		{
+		i = 0
+		len = .text.Size()
+
+		while i < len
+			{
+			c = .text[i]
+
+			if .IsWhite(c)
+				{
+				++i
+				continue
+				}
+
+			if c is "/"
+				{
+				i = .HandleSlash(i, len)
+				continue
+				}
+
+			if c is "\x22"
+				{
+				i = .HandleString(i, len)
+				continue
+				}
+
+			if .IsSymbol(c)
+				{
+				.AddToken("symbol", .XmlEscape(c))
+				++i
+				continue
+				}
+
+			if .IsDigit(c)
+				{
+				i = .HandleNumber(i, len)
+				continue
+				}
+
+			if .IsLetter(c) or c is "_"
+				{
+				i = .HandleWord(i, len)
+				continue
+				}
+
+			throw "Unknown character: " $ c
+			}
+		}
+
+	HandleSlash(i, len)
+		{
+		if i + 1 < len and .text[i + 1] is "/"
+			return .SkipLineComment(i + 2, len)
+
+		if i + 1 < len and .text[i + 1] is "*"
+			return .SkipBlockComment(i + 2, len)
+
+		.AddToken("symbol", "/")
+		return i + 1
+		}
+
+	SkipLineComment(i, len)
+		{
+		while i < len and .text[i] isnt "\n"
+			++i
+		return i
+		}
+
+	SkipBlockComment(i, len)
+		{
+		while i + 1 < len
+			{
+			if .text[i] is "*" and .text[i + 1] is "/"
+				return i + 2
+			++i
+			}
+
+		return i
+		}
+
+	HandleString(i, len)
+		{
+		++i
+		temp = ""
+
+		while i < len and .text[i] isnt "\x22"
+			{
+			temp $= .text[i]
+			++i
+			}
+
+		.AddToken("stringConstant", temp)
+		return i + 1
+		}
+
+	HandleNumber(i, len)
+		{
+		temp = ""
+
+		while i < len and .IsDigit(.text[i])
+			{
+			temp $= .text[i]
+			++i
+			}
+
+		.AddToken("integerConstant", temp)
+		return i
+		}
+
+	HandleWord(i, len)
+		{
+		temp = ""
+
+		while i < len and .IsIdentifierChar(.text[i])
+			{
+			temp $= .text[i]
+			++i
+			}
+
+		if .IsKeyword(temp)
+			.AddToken("keyword", temp)
+		else
+			.AddToken("identifier", temp)
+
+		return i
+		}
+
+	AddToken(type, value)
+		{
+		.tokens.Add(Object(type: type, value: value))
+		}
+
+	IsWhite(c)
+		{
+		return c is " " or c is "\t" or c is "\r" or c is "\n"
+		}
+
+	IsDigit(c)
+		{
+		return c >= "0" and c <= "9"
+		}
+
+	IsLetter(c)
+		{
+		if c >= "a" and c <= "z"
+			return true
+
+		if c >= "A" and c <= "Z"
+			return true
+
+		return false
+		}
+
+	IsIdentifierChar(c)
+		{
+		if .IsLetter(c)
+			return true
+		if .IsDigit(c)
+			return true
+		if c is "_"
+			return true
+		return false
+		}
+
+	IsSymbol(c)
+		{
+		if c is "{"
+			return true
+		if c is "}"
+			return true
+		if c is "("
+			return true
+		if c is ")"
+			return true
+		if c is "["
+			return true
+		if c is "]"
+			return true
+		if c is "."
+			return true
+		if c is ","
+			return true
+		if c is ";"
+			return true
+		if c is "+"
+			return true
+		if c is "-"
+			return true
+		if c is "*"
+			return true
+		if c is "/"
+			return true
+		if c is "&"
+			return true
+		if c is "|"
+			return true
+		if c is "<"
+			return true
+		if c is ">"
+			return true
+		if c is "="
+			return true
+		if c is "~"
+			return true
+		return false
+		}
+
+	IsKeyword(s)
+		{
+		if s is "class"
+			return true
+		if s is "constructor"
+			return true
+		if s is "function"
+			return true
+		if s is "method"
+			return true
+		if s is "field"
+			return true
+		if s is "static"
+			return true
+		if s is "var"
+			return true
+		if s is "int"
+			return true
+		if s is "char"
+			return true
+		if s is "boolean"
+			return true
+		if s is "void"
+			return true
+		if s is "true"
+			return true
+		if s is "false"
+			return true
+		if s is "null"
+			return true
+		if s is "this"
+			return true
+		if s is "let"
+			return true
+		if s is "do"
+			return true
+		if s is "if"
+			return true
+		if s is "else"
+			return true
+		if s is "while"
+			return true
+		if s is "return"
+			return true
+		return false
+		}
+
+	XmlEscape(s)
+		{
+		if s is "<"
+			return "&lt;"
+		if s is ">"
+			return "&gt;"
+		if s is "&"
+			return "&amp;"
+		return s
+		}
+	}
+===========================================================

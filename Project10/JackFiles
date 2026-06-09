@@ -1,0 +1,24 @@
+JackFiles
+librec_info: #(path: #(), lib_committed: "")
+function (source)
+	{
+	files = Object()
+
+	if source.AfterLast(".") is "jack"
+		{
+		files.Add(source)
+		return files
+		}
+
+	list = Dir(source $ "/*")
+
+	for (i = 0; i < list.Size(); ++i)
+		{
+		name = list[i]
+		if name.AfterLast(".") is "jack"
+			files.Add(source $ "\\" $ name)
+		}
+
+	return files
+	}
+===========================================================

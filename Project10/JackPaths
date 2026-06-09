@@ -1,0 +1,41 @@
+JackPaths
+librec_info: #(path: #(), lib_committed: "")
+class
+	{
+	BaseName(filePath)
+		{
+		fileName = filePath.AfterLast("\\")
+		if fileName is filePath
+			fileName = filePath.AfterLast("/")
+		return fileName.BeforeLast(".")
+		}
+
+	DirName(filePath)
+		{
+		dir = filePath.BeforeLast("\\")
+		if dir is filePath
+			dir = filePath.BeforeLast("/")
+		if dir is filePath
+			return ""
+		return dir
+		}
+
+	TokenXmlPath(filePath)
+		{
+		dir = .DirName(filePath)
+		base = .BaseName(filePath)
+		if dir is ""
+			return base $ "T.xml"
+		return dir $ "\\" $ base $ "T.xml"
+		}
+
+	ParseXmlPath(filePath)
+		{
+		dir = .DirName(filePath)
+		base = .BaseName(filePath)
+		if dir is ""
+			return base $ ".xml"
+		return dir $ "\\" $ base $ ".xml"
+		}
+	}
+===========================================================

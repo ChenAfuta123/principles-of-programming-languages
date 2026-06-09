@@ -1,0 +1,28 @@
+JackAnalyzer
+librec_info: #(path: #(), lib_committed: "")
+class
+	{
+	CallClass(source)
+		{
+		files = JackFiles(source)
+		paths = JackPaths()
+
+		for (i = 0; i < files.Size(); ++i)
+			{
+			filePath = files[i]
+
+			tokenizer = JackTokenizer(filePath)
+
+			tokensPath = paths.TokenXmlPath(filePath)
+			tokenizer.WriteTokensXml(tokensPath)
+
+			outPath = paths.ParseXmlPath(filePath)
+
+			engine = CompilationEngine(tokenizer.GetTokens(), outPath)
+			engine.CompileClass()
+			}
+
+		return "done"
+		}
+	}
+===========================================================
