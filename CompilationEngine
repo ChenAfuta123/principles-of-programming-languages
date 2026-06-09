@@ -1,0 +1,369 @@
+CompilationEngine
+librec_info: #(path: #(), lib_committed: "")
+class
+	{
+	New(tokens, outputPath)
+		{
+		.tokens = tokens
+		.outputPath = outputPath
+		.i = 0
+		.indent = 0
+		.lines = Object()
+		}
+
+	CompileClass()
+		{
+		.Open("class")
+
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+
+		while .CurrentValue() is "static" or .CurrentValue() is "field"
+			.CompileClassVarDec()
+
+		while .IsSubroutineStart(.CurrentValue())
+			.CompileSubroutine()
+
+		.WriteAndAdvance()
+
+		.Close("class")
+		PutFile(.outputPath, .lines.Join("\n") $ "\n")
+		}
+
+	CompileClassVarDec()
+		{
+		.Open("classVarDec")
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+
+		while .CurrentValue() is ","
+			{
+			.WriteAndAdvance()
+			.WriteAndAdvance()
+			}
+
+		.WriteAndAdvance()
+		.Close("classVarDec")
+		}
+
+	CompileSubroutine()
+		{
+		.Open("subroutineDec")
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+
+		.CompileParameterList()
+
+		.WriteAndAdvance()
+		.CompileSubroutineBody()
+		.Close("subroutineDec")
+		}
+
+	CompileParameterList()
+		{
+		.Open("parameterList")
+
+		if .CurrentValue() isnt ")"
+			{
+			.WriteAndAdvance()
+			.WriteAndAdvance()
+
+			while .CurrentValue() is ","
+				{
+				.WriteAndAdvance()
+				.WriteAndAdvance()
+				.WriteAndAdvance()
+				}
+			}
+
+		.Close("parameterList")
+		}
+
+	CompileSubroutineBody()
+		{
+		.Open("subroutineBody")
+		.WriteAndAdvance()
+
+		while .CurrentValue() is "var"
+			.CompileVarDec()
+
+		.CompileStatements()
+		.WriteAndAdvance()
+		.Close("subroutineBody")
+		}
+
+	CompileVarDec()
+		{
+		.Open("varDec")
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+
+		while .CurrentValue() is ","
+			{
+			.WriteAndAdvance()
+			.WriteAndAdvance()
+			}
+
+		.WriteAndAdvance()
+		.Close("varDec")
+		}
+
+	CompileStatements()
+		{
+		.Open("statements")
+
+		while .IsStatementStart(.CurrentValue())
+			.CompileOneStatement()
+
+		.Close("statements")
+		}
+
+	CompileOneStatement()
+		{
+		if .CurrentValue() is "let"
+			.CompileLet()
+		else if .CurrentValue() is "if"
+			.CompileIf()
+		else if .CurrentValue() is "while"
+			.CompileWhile()
+		else if .CurrentValue() is "do"
+			.CompileDo()
+		else if .CurrentValue() is "return"
+			.CompileReturn()
+		}
+
+	CompileLet()
+		{
+		.Open("letStatement")
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+
+		if .CurrentValue() is "["
+			{
+			.WriteAndAdvance()
+			.CompileExpression()
+			.WriteAndAdvance()
+			}
+
+		.WriteAndAdvance()
+		.CompileExpression()
+		.WriteAndAdvance()
+		.Close("letStatement")
+		}
+
+	CompileIf()
+		{
+		.Open("ifStatement")
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+		.CompileExpression()
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+		.CompileStatements()
+		.WriteAndAdvance()
+
+		if .CurrentValue() is "else"
+			{
+			.WriteAndAdvance()
+			.WriteAndAdvance()
+			.CompileStatements()
+			.WriteAndAdvance()
+			}
+
+		.Close("ifStatement")
+		}
+
+	CompileWhile()
+		{
+		.Open("whileStatement")
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+		.CompileExpression()
+		.WriteAndAdvance()
+		.WriteAndAdvance()
+		.CompileStatements()
+		.WriteAndAdvance()
+		.Close("whileStatement")
+		}
+
+	CompileDo()
+		{
+		.Open("doStatement")
+		.WriteAndAdvance()
+		.CompileSubroutineCall()
+		.WriteAndAdvance()
+		.Close("doStatement")
+		}
+
+	CompileReturn()
+		{
+		.Open("returnStatement")
+		.WriteAndAdvance()
+
+		if .CurrentValue() isnt ";"
+			.CompileExpression()
+
+		.WriteAndAdvance()
+		.Close("returnStatement")
+		}
+
+	CompileExpression()
+		{
+		.Open("expression")
+		.CompileTerm()
+
+		while .IsOp(.CurrentValue())
+			{
+			.WriteAndAdvance()
+			.CompileTerm()
+			}
+
+		.Close("expression")
+		}
+
+	CompileTerm()
+		{
+		.Open("term")
+
+		value = .CurrentValue()
+		next = .NextValue()
+
+		if value is "("
+			{
+			.WriteAndAdvance()
+			.CompileExpression()
+			.WriteAndAdvance()
+			}
+		else if value is "-" or value is "~"
+			{
+			.WriteAndAdvance()
+			.CompileTerm()
+			}
+		else if next is "["
+			{
+			.WriteAndAdvance()
+			.WriteAndAdvance()
+			.CompileExpression()
+			.WriteAndAdvance()
+			}
+		else if next is "(" or next is "."
+			.CompileSubroutineCall()
+		else
+			.WriteAndAdvance()
+
+		.Close("term")
+		}
+
+	CompileSubroutineCall()
+		{
+		.WriteAndAdvance()
+
+		if .CurrentValue() is "."
+			{
+			.WriteAndAdvance()
+			.WriteAndAdvance()
+			}
+
+		.WriteAndAdvance()
+		.CompileExpressionList()
+		.WriteAndAdvance()
+		}
+
+	CompileExpressionList()
+		{
+		.Open("expressionList")
+
+		if .CurrentValue() isnt ")"
+			{
+			.CompileExpression()
+
+			while .CurrentValue() is ","
+				{
+				.WriteAndAdvance()
+				.CompileExpression()
+				}
+			}
+
+		.Close("expressionList")
+		}
+
+	Current()
+		{
+		if .i >= .tokens.Size()
+			return false
+		return .tokens[.i]
+		}
+
+	CurrentValue()
+		{
+		t = .Current()
+		if t is false
+			return false
+		return t.value
+		}
+
+	NextValue()
+		{
+		if .i + 1 >= .tokens.Size()
+			return false
+		return .tokens[.i + 1].value
+		}
+
+	WriteAndAdvance()
+		{
+		t = .Current()
+		if t is false
+			throw "Unexpected end of tokens"
+
+		line = "<" $ t.type $ "> "
+		line $= t.value
+		line $= " </" $ t.type $ ">"
+		.Line(line)
+
+		++ .i
+		}
+
+	Open(tag)
+		{
+		.Line("<" $ tag $ ">")
+		++ .indent
+		}
+
+	Close(tag)
+		{
+		-- .indent
+		.Line("</" $ tag $ ">")
+		}
+
+	Line(s)
+		{
+		prefix = ""
+		for (j = 0; j < .indent; ++j)
+			prefix $= "  "
+		.lines.Add(prefix $ s)
+		}
+
+	IsSubroutineStart(v)
+		{
+		return v is "constructor" or v is "function" or v is "method"
+		}
+
+	IsStatementStart(v)
+		{
+		return v is "let" or v is "if" or v is "while" or
+			v is "do" or v is "return"
+		}
+
+	IsOp(v)
+		{
+		return v is "+" or v is "-" or v is "*" or v is "/" or
+			v is "&amp;" or v is "|" or v is "&lt;" or
+			v is "&gt;" or v is "="
+		}
+	}
+===========================================================
