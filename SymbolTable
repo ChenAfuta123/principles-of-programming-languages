@@ -1,0 +1,92 @@
+SymbolTable
+librec_info: #(path: #(), lib_committed: "")
+class
+	{
+	New()
+		{
+		.classTable = Object()
+		.subTable = Object()
+		.staticCount = 0
+		.fieldCount = 0
+		.argCount = 0
+		.varCount = 0
+		}
+
+	StartSubroutine()
+		{
+		.subTable = Object()
+		.argCount = 0
+		.varCount = 0
+		}
+
+	Define(name, type, kind)
+		{
+		index = .VarCount(kind)
+		entry = Object(name: name, type: type, kind: kind, index: index)
+
+		if kind is "static" or kind is "field"
+			.classTable.Add(entry)
+		else
+			.subTable.Add(entry)
+
+		if kind is "static"
+			++ .staticCount
+		else if kind is "field"
+			++ .fieldCount
+		else if kind is "argument"
+			++ .argCount
+		else if kind is "var"
+			++ .varCount
+		}
+
+	VarCount(kind)
+		{
+		if kind is "static"
+			return .staticCount
+		if kind is "field"
+			return .fieldCount
+		if kind is "argument"
+			return .argCount
+		if kind is "var"
+			return .varCount
+		return 0
+		}
+
+	KindOf(name)
+		{
+		e = .Find(name)
+		if e is false
+			return "none"
+		return e.kind
+		}
+
+	TypeOf(name)
+		{
+		e = .Find(name)
+		if e is false
+			return ""
+		return e.type
+		}
+
+	IndexOf(name)
+		{
+		e = .Find(name)
+		if e is false
+			return 0
+		return e.index
+		}
+
+	Find(name)
+		{
+		for (i = .subTable.Size() - 1; i >= 0; --i)
+			if .subTable[i].name is name
+				return .subTable[i]
+
+		for (i = .classTable.Size() - 1; i >= 0; --i)
+			if .classTable[i].name is name
+				return .classTable[i]
+
+		return false
+		}
+	}
+===========================================================

@@ -1,0 +1,61 @@
+VMWriter
+librec_info: #(path: #(), lib_committed: "")
+class
+	{
+	New(outputPath)
+		{
+		.outputPath = outputPath
+		.lines = Object()
+		}
+
+	WritePush(segment, index)
+		{
+		.lines.Add("push " $ segment $ " " $ String(index))
+		}
+
+	WritePop(segment, index)
+		{
+		.lines.Add("pop " $ segment $ " " $ String(index))
+		}
+
+	WriteArithmetic(command)
+		{
+		.lines.Add(command)
+		}
+
+	WriteLabel(label)
+		{
+		.lines.Add("label " $ label)
+		}
+
+	WriteGoto(label)
+		{
+		.lines.Add("goto " $ label)
+		}
+
+	WriteIf(label)
+		{
+		.lines.Add("if-goto " $ label)
+		}
+
+	WriteCall(name, nArgs)
+		{
+		.lines.Add("call " $ name $ " " $ String(nArgs))
+		}
+
+	WriteFunction(name, nLocals)
+		{
+		.lines.Add("function " $ name $ " " $ String(nLocals))
+		}
+
+	WriteReturn()
+		{
+		.lines.Add("return")
+		}
+
+	Close()
+		{
+		PutFile(.outputPath, .lines.Join("\n") $ "\n")
+		}
+	}
+===========================================================

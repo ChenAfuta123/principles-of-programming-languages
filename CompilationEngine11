@@ -1,0 +1,535 @@
+CompilationEngine11
+librec_info: #(path: #(), lib_committed: "")
+class
+	{
+	New(tokens, writer)
+		{
+		.tokens = tokens
+		.writer = writer
+		.i = 0
+		.className = ""
+		.subroutineName = ""
+		.subroutineKind = ""
+		.labelIndex = 0
+		.table = SymbolTable()
+		}
+
+	CompileClass()
+		{
+		.Eat("class")
+		.className = .EatValue()
+		.Eat("{")
+
+		while .CurrentValue() is "static" or .CurrentValue() is "field"
+			.CompileClassVarDec()
+
+		while .IsSubroutineStart(.CurrentValue())
+			.CompileSubroutine()
+
+		.Eat("}")
+		}
+
+	CompileClassVarDec()
+		{
+		kind = .EatValue()
+		type = .EatValue()
+		name = .EatValue()
+		.table.Define(name, type, kind)
+
+		while .CurrentValue() is ","
+			{
+			.Eat(",")
+			name = .EatValue()
+			.table.Define(name, type, kind)
+			}
+
+		.Eat(";")
+		}
+
+	CompileSubroutine()
+		{
+		.subroutineKind = .EatValue()
+		.EatValue()
+		.subroutineName = .EatValue()
+
+		.table.StartSubroutine()
+
+		if .subroutineKind is "method"
+			.table.Define("this", .className, "argument")
+
+		.Eat("(")
+		.CompileParameterList()
+		.Eat(")")
+
+		.CompileSubroutineBody()
+		}
+
+	CompileParameterList()
+		{
+		if .CurrentValue() is ")"
+			return
+
+		type = .EatValue()
+		name = .EatValue()
+		.table.Define(name, type, "argument")
+
+		while .CurrentValue() is ","
+			{
+			.Eat(",")
+			type = .EatValue()
+			name = .EatValue()
+			.table.Define(name, type, "argument")
+			}
+		}
+
+	CompileSubroutineBody()
+		{
+		.Eat("{")
+
+		while .CurrentValue() is "var"
+			.CompileVarDec()
+
+		fullName = .className $ "." $ .subroutineName
+		nLocals = .table.VarCount("var")
+		.writer.WriteFunction(fullName, nLocals)
+
+		if .subroutineKind is "constructor"
+			{
+			nFields = .table.VarCount("field")
+			.writer.WritePush("constant", nFields)
+			.writer.WriteCall("Memory.alloc", 1)
+			.writer.WritePop("pointer", 0)
+			}
+		else if .subroutineKind is "method"
+			{
+			.writer.WritePush("argument", 0)
+			.writer.WritePop("pointer", 0)
+			}
+
+		.CompileStatements()
+		.Eat("}")
+		}
+
+	CompileVarDec()
+		{
+		.Eat("var")
+		type = .EatValue()
+		name = .EatValue()
+		.table.Define(name, type, "var")
+
+		while .CurrentValue() is ","
+			{
+			.Eat(",")
+			name = .EatValue()
+			.table.Define(name, type, "var")
+			}
+
+		.Eat(";")
+		}
+
+	CompileStatements()
+		{
+		while .IsStatementStart(.CurrentValue())
+			{
+			if .CurrentValue() is "let"
+				.CompileLet()
+			else if .CurrentValue() is "if"
+				.CompileIf()
+			else if .CurrentValue() is "while"
+				.CompileWhile()
+			else if .CurrentValue() is "do"
+				.CompileDo()
+			else if .CurrentValue() is "return"
+				.CompileReturn()
+			}
+		}
+
+	CompileLet()
+		{
+		.Eat("let")
+		name = .EatValue()
+		isArray = false
+
+		if .CurrentValue() is "["
+			{
+			isArray = true
+			.PushVar(name)
+			.Eat("[")
+			.CompileExpression()
+			.Eat("]")
+			.writer.WriteArithmetic("add")
+			}
+
+		.Eat("=")
+		.CompileExpression()
+		.Eat(";")
+
+		if isArray
+			{
+			.writer.WritePop("temp", 0)
+			.writer.WritePop("pointer", 1)
+			.writer.WritePush("temp", 0)
+			.writer.WritePop("that", 0)
+			}
+		else
+			.PopVar(name)
+		}
+
+	CompileIf()
+		{
+		labelTrue = .NewLabel("IF_TRUE")
+		labelFalse = .NewLabel("IF_FALSE")
+		labelEnd = .NewLabel("IF_END")
+
+		.Eat("if")
+		.Eat("(")
+		.CompileExpression()
+		.Eat(")")
+
+		.writer.WriteIf(labelTrue)
+		.writer.WriteGoto(labelFalse)
+		.writer.WriteLabel(labelTrue)
+
+		.Eat("{")
+		.CompileStatements()
+		.Eat("}")
+
+		if .CurrentValue() is "else"
+			{
+			.writer.WriteGoto(labelEnd)
+			.writer.WriteLabel(labelFalse)
+			.Eat("else")
+			.Eat("{")
+			.CompileStatements()
+			.Eat("}")
+			.writer.WriteLabel(labelEnd)
+			}
+		else
+			.writer.WriteLabel(labelFalse)
+		}
+
+	CompileWhile()
+		{
+		labelExp = .NewLabel("WHILE_EXP")
+		labelEnd = .NewLabel("WHILE_END")
+
+		.writer.WriteLabel(labelExp)
+
+		.Eat("while")
+		.Eat("(")
+		.CompileExpression()
+		.Eat(")")
+
+		.writer.WriteArithmetic("not")
+		.writer.WriteIf(labelEnd)
+
+		.Eat("{")
+		.CompileStatements()
+		.Eat("}")
+
+		.writer.WriteGoto(labelExp)
+		.writer.WriteLabel(labelEnd)
+		}
+
+	CompileDo()
+		{
+		.Eat("do")
+		.CompileSubroutineCall()
+		.Eat(";")
+		.writer.WritePop("temp", 0)
+		}
+
+	CompileReturn()
+		{
+		.Eat("return")
+
+		if .CurrentValue() isnt ";"
+			.CompileExpression()
+		else
+			.writer.WritePush("constant", 0)
+
+		.Eat(";")
+		.writer.WriteReturn()
+		}
+
+	CompileExpression()
+		{
+		.CompileTerm()
+
+		while .IsOp(.CurrentValue())
+			{
+			op = .EatValue()
+			.CompileTerm()
+			.WriteOp(op)
+			}
+		}
+
+	CompileTerm()
+		{
+		t = .Current()
+		value = t.value
+		type = t.type
+		next = .NextValue()
+
+		if type is "integerConstant"
+			{
+			.writer.WritePush("constant", Number(value))
+			.Advance()
+			}
+		else if type is "stringConstant"
+			{
+			.WriteString(value)
+			.Advance()
+			}
+		else if value is "true"
+			{
+			.writer.WritePush("constant", 0)
+			.writer.WriteArithmetic("not")
+			.Advance()
+			}
+		else if value is "false" or value is "null"
+			{
+			.writer.WritePush("constant", 0)
+			.Advance()
+			}
+		else if value is "this"
+			{
+			.writer.WritePush("pointer", 0)
+			.Advance()
+			}
+		else if value is "("
+			{
+			.Eat("(")
+			.CompileExpression()
+			.Eat(")")
+			}
+		else if value is "-" or value is "~"
+			{
+			op = .EatValue()
+			.CompileTerm()
+			if op is "-"
+				.writer.WriteArithmetic("neg")
+			else
+				.writer.WriteArithmetic("not")
+			}
+		else if next is "["
+			{
+			name = .EatValue()
+			.PushVar(name)
+			.Eat("[")
+			.CompileExpression()
+			.Eat("]")
+			.writer.WriteArithmetic("add")
+			.writer.WritePop("pointer", 1)
+			.writer.WritePush("that", 0)
+			}
+		else if next is "(" or next is "."
+			.CompileSubroutineCall()
+		else
+			{
+			name = .EatValue()
+			.PushVar(name)
+			}
+		}
+
+	CompileSubroutineCall()
+		{
+		name = .EatValue()
+		nArgs = 0
+
+		if .CurrentValue() is "."
+			{
+			.Eat(".")
+			subName = .EatValue()
+
+			if .table.KindOf(name) isnt "none"
+				{
+				.PushVar(name)
+				nArgs = 1
+				name = .table.TypeOf(name) $ "." $ subName
+				}
+			else
+				name = name $ "." $ subName
+			}
+		else
+			{
+			.writer.WritePush("pointer", 0)
+			nArgs = 1
+			name = .className $ "." $ name
+			}
+
+		.Eat("(")
+		nArgs += .CompileExpressionList()
+		.Eat(")")
+
+		.writer.WriteCall(name, nArgs)
+		}
+
+	CompileExpressionList()
+		{
+		count = 0
+
+		if .CurrentValue() is ")"
+			return count
+
+		.CompileExpression()
+		++count
+
+		while .CurrentValue() is ","
+			{
+			.Eat(",")
+			.CompileExpression()
+			++count
+			}
+
+		return count
+		}
+
+	PushVar(name)
+		{
+		kind = .table.KindOf(name)
+		index = .table.IndexOf(name)
+		segment = .SegmentOf(kind)
+		.writer.WritePush(segment, index)
+		}
+
+	PopVar(name)
+		{
+		kind = .table.KindOf(name)
+		index = .table.IndexOf(name)
+		segment = .SegmentOf(kind)
+		.writer.WritePop(segment, index)
+		}
+
+	SegmentOf(kind)
+		{
+		if kind is "static"
+			return "static"
+		if kind is "field"
+			return "this"
+		if kind is "argument"
+			return "argument"
+		if kind is "var"
+			return "local"
+
+		throw "Unknown variable kind"
+		}
+
+	WriteOp(op)
+		{
+		if op is "+"
+			.writer.WriteArithmetic("add")
+		else if op is "-"
+			.writer.WriteArithmetic("sub")
+		else if op is "*"
+			.writer.WriteCall("Math.multiply", 2)
+		else if op is "/"
+			.writer.WriteCall("Math.divide", 2)
+		else if op is "&amp;"
+			.writer.WriteArithmetic("and")
+		else if op is "|"
+			.writer.WriteArithmetic("or")
+		else if op is "&lt;"
+			.writer.WriteArithmetic("lt")
+		else if op is "&gt;"
+			.writer.WriteArithmetic("gt")
+		else if op is "="
+			.writer.WriteArithmetic("eq")
+		}
+
+	WriteString(s)
+		{
+		.writer.WritePush("constant", s.Size())
+		.writer.WriteCall("String.new", 1)
+
+		for (j = 0; j < s.Size(); ++j)
+			{
+			.writer.WritePush("constant", s[j].Asc())
+			.writer.WriteCall("String.appendChar", 2)
+			}
+		}
+
+	NewLabel(prefix)
+		{
+		label = prefix $ String(.labelIndex)
+		++ .labelIndex
+		return label
+		}
+
+	Current()
+		{
+		if .i >= .tokens.Size()
+			return false
+		return .tokens[.i]
+		}
+
+	CurrentValue()
+		{
+		t = .Current()
+		if t is false
+			return false
+		return t.value
+		}
+
+	NextValue()
+		{
+		if .i + 1 >= .tokens.Size()
+			return false
+		return .tokens[.i + 1].value
+		}
+
+	Advance()
+		{
+		++ .i
+		}
+
+	Eat(expected)
+		{
+		value = .CurrentValue()
+		if value isnt expected
+			throw "Expected " $ expected $ " but got " $ value
+		.Advance()
+		}
+
+	EatValue()
+		{
+		value = .CurrentValue()
+		.Advance()
+		return value
+		}
+
+	IsSubroutineStart(v)
+		{
+		return v is "constructor" or v is "function" or v is "method"
+		}
+
+	IsStatementStart(v)
+		{
+		return v is "let" or v is "if" or v is "while" or
+			v is "do" or v is "return"
+		}
+
+	IsOp(v)
+		{
+		if v is "+"
+			return true
+		if v is "-"
+			return true
+		if v is "*"
+			return true
+		if v is "/"
+			return true
+		if v is "&amp;"
+			return true
+		if v is "|"
+			return true
+		if v is "&lt;"
+			return true
+		if v is "&gt;"
+			return true
+		if v is "="
+			return true
+		return false
+		}
+	}
+===========================================================

@@ -1,0 +1,38 @@
+JackCompiler
+librec_info: #(path: #(), lib_committed: "")
+class
+	{
+	CallClass(source)
+		{
+		files = JackFiles(source)
+		paths = JackPaths()
+
+		for (i = 0; i < files.Size(); ++i)
+			{
+			filePath = files[i]
+			tokenizer = JackTokenizer(filePath)
+
+			outPath = .VmPath(paths, filePath)
+			writer = VMWriter(outPath)
+
+			engine = CompilationEngine11(tokenizer.GetTokens(), writer)
+			engine.CompileClass()
+			writer.Close()
+			}
+
+		return "done"
+		}
+
+	VmPath(paths, filePath)
+		{
+		dir = paths.DirName(filePath)
+		base = paths.BaseName(filePath)
+
+		if dir is ""
+			return base $ ".vm"
+
+		return dir $ "\\" $ base $ ".vm"
+		}
+	}
+
+===========================================================
